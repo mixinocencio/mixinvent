@@ -1,13 +1,113 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ATIVO
+  INATIVO
+}
+
+enum CategoryType {
+  PATRIMONIO
+  INSUMO
+}
+
+enum AssetStatus {
+  DISPONIVEL
+  EM_USO
+  MANUTENCAO
+  SUCATA
+}
+
+enum AssetLogAcao {
+  CHECKOUT
+  CHECKIN
+  MANUTENCAO
+}
+
+model User {
+  id               String      @id @default(uuid())
+  nome             String
+  email            String      @unique
+  samAccountName   String?     @unique
+  cargo            String?
+  empresa          String?
+  cidade           String?
+  licencasO365     String?
+  departamentoId   String?     @map("departamento_id")
+  status           UserStatus  @default(ATIVO)
+  departamento     Department? @relation(fields: [departamentoId], references: [id])
+  assetsEmUso      Asset[]     @relation("AssetUsuarioAtual")
+  assetLogs        AssetLog[]
+
+  @@map("users")
+}
+
+model Department {
+  id          String  @id @default(uuid())
+  nome        String
+  localizacao String?
+  users       User[]
+
+  @@map("departments")
+}
+
+model Category {
+  id          String       @id @default(uuid())
+  nome        String
+  tipo        CategoryType
+  assets      Asset[]
+  consumables Consumable[]
+
+  @@map("categories")
+}
+
+model Asset {
+  id                   String      @id @default(uuid())
+  tagPatrimonio        String      @unique @map("tag_patrimonio")
+  hostname             String?     @unique
+  numeroSerie          String?     @map("numero_serie")
+  marca                String?
+  modelo               String?
+  sistemaOperacional   String?
+  statusAntivirus      String?
+  dataCompra           DateTime?   @map("data_compra")
+  valor                Decimal?    @db.Decimal(14, 2)
+  status               AssetStatus @default(DISPONIVEL)
+  userId               String?     @map("user_id")
+  categoryId           String      @map("category_id")
+  usuarioAtual         User?       @relation("AssetUsuarioAtual", fields: [userId], references: [id])
+  category             Category    @relation(fields: [categoryId], references: [id])
+  logs                 AssetLog[]
+
+  @@map("assets")
+}
+
+model Consumable {
+  id                String @id @default(uuid())
+  nome              String
+  quantidadeEstoque Int    @default(0) @map("quantidade_estoque")
+  estoqueMinimo     Int    @default(0) @map("estoque_minimo")
+  categoryId        String @map("category_id")
+  category          Category @relation(fields: [categoryId], references: [id])
+
+  @@map("consumables")
+}
+
+model AssetLog {
+  id               String       @id @default(uuid())
+  assetId          String       @map("asset_id")
+  userId           String       @map("user_id")
+  acao             AssetLogAcao
+  dataMovimentacao DateTime     @default(now()) @map("data_movimentacao")
+  observacao       String?
+  asset            Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id])
+
+  @@map("asset_logs")
 }

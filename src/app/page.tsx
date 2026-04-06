@@ -1,103 +1,121 @@
-import Image from "next/image";
+import { prisma } from "@/lib/prisma";
+import { isPrismaAppBlockedError, isPrismaMigrateLikelyNeeded } from "@/lib/is-prisma-app-blocked";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package, Monitor, Wrench, Database } from "lucide-react";
 
-export default function Home() {
+export default async function DashboardPage() {
+  let totalEquipamentos = 0;
+  let emUso = 0;
+  let manutencao = 0;
+  let totalInsumos = 0;
+  let qtdInsumosItens = 0;
+  let dbOffline = false;
+  let suggestMigrate = false;
+
+  try {
+    const [t, u, m, ins, consumablesAgg] = await Promise.all([
+      prisma.asset.count(),
+      prisma.asset.count({ where: { status: "EM_USO" } }),
+      prisma.asset.count({ where: { status: "MANUTENCAO" } }),
+      prisma.consumable.count(),
+      prisma.consumable.aggregate({ _sum: { quantidadeEstoque: true } }),
+    ]);
+    totalEquipamentos = t;
+    emUso = u;
+    manutencao = m;
+    totalInsumos = ins;
+    qtdInsumosItens = consumablesAgg._sum.quantidadeEstoque ?? 0;
+  } catch (e) {
+    console.error("[dashboard]", e);
+    if (isPrismaAppBlockedError(e)) {
+      dbOffline = true;
+      suggestMigrate = isPrismaMigrateLikelyNeeded(e);
+    } else {
+      throw e;
+    }
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">Painel</h1>
+        <p className="text-muted-foreground">Visão geral dos equipamentos e insumos.</p>
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {dbOffline && (
+        <div className="flex gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-950 dark:text-amber-100">
+          <Database className="size-5 shrink-0 text-amber-700 dark:text-amber-400" />
+          <div className="space-y-1">
+            <p className="font-medium">Banco de dados indisponível</p>
+            <p className="text-amber-900/90 dark:text-amber-100/90">
+              O Next.js está no ar, mas o Prisma não conseguiu usar o banco. Confira se o PostgreSQL
+              está rodando (<code className="rounded bg-background/60 px-1">npm run db:up</code>) e se{" "}
+              <code className="rounded bg-background/60 px-1">DATABASE_URL</code> no{" "}
+              <code className="rounded bg-background/60 px-1">.env</code> aponta para{" "}
+              <code className="rounded bg-background/60 px-1">localhost:5432</code>.
+            </p>
+            {suggestMigrate && (
+              <p className="pt-2 text-amber-900/90 dark:text-amber-100/90">
+                Parece que as tabelas ainda não existem. No terminal, na pasta do projeto, rode:{" "}
+                <code className="rounded bg-background/60 px-1">npx prisma migrate dev --name init</code>{" "}
+                e, se quiser dados de exemplo,{" "}
+                <code className="rounded bg-background/60 px-1">npm run db:seed</code>.
+              </p>
+            )}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className={dbOffline ? "opacity-70" : undefined}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Equipamentos (total)</CardTitle>
+            <Monitor className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold tabular-nums">{dbOffline ? "—" : totalEquipamentos}</p>
+            <CardDescription className="mt-1">Cadastro de ativos</CardDescription>
+          </CardContent>
+        </Card>
+        <Card className={dbOffline ? "opacity-70" : undefined}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Em uso</CardTitle>
+            <Monitor className="size-4 text-blue-500/80" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+              {dbOffline ? "—" : emUso}
+            </p>
+            <CardDescription className="mt-1">Alocados a colaboradores</CardDescription>
+          </CardContent>
+        </Card>
+        <Card className={dbOffline ? "opacity-70" : undefined}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Manutenção</CardTitle>
+            <Wrench className="size-4 text-amber-500/80" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+              {dbOffline ? "—" : manutencao}
+            </p>
+            <CardDescription className="mt-1">Fora da operação</CardDescription>
+          </CardContent>
+        </Card>
+        <Card className={dbOffline ? "opacity-70" : undefined}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Insumos</CardTitle>
+            <Package className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold tabular-nums">{dbOffline ? "—" : totalInsumos}</p>
+            <CardDescription className="mt-1">
+              {dbOffline
+                ? "Conecte o banco para ver os totais"
+                : `SKUs cadastrados · ${qtdInsumosItens} unidades em estoque`}
+            </CardDescription>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
