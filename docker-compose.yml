@@ -25,7 +25,7 @@ services:
     environment:
       DATABASE_URL: postgresql://mixinvent:mixinvent_dev@db:5432/mixinvent
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
 volumes:
   mixinvent_pgdata:
