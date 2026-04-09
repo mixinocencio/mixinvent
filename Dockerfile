@@ -13,6 +13,7 @@ RUN npm ci
 
 # Stage 2: Builder
 FROM runtime-base AS builder
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate

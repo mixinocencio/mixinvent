@@ -17,9 +17,9 @@ services:
       start_period: 10s
 
   app:
-    build: .
+    image: mixinocencio/mixinvent:latest
     container_name: mixinvent-app
-    restart: unless-stopped
+    restart: always
     depends_on:
       - db
     environment:
