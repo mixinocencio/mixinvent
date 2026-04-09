@@ -33,4 +33,4 @@ COPY --from=builder /app/next.config.ts ./next.config.ts
 EXPOSE 3000
 
 # DATABASE_URL deve ser injetado no runtime (Compose, K8s, etc.)
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "until npx prisma migrate deploy; do echo 'Aguardando banco de dados...' && sleep 2; done && npm start"]

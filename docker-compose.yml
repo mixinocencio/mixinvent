@@ -16,5 +16,16 @@ services:
       retries: 10
       start_period: 10s
 
+  app:
+    build: .
+    container_name: mixinvent-app
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://mixinvent:mixinvent_dev@db:5432/mixinvent
+    ports:
+      - "3000:3000"
+
 volumes:
   mixinvent_pgdata:
