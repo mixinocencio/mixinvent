@@ -30,20 +30,107 @@ enum AssetLogAcao {
   MANUTENCAO
 }
 
-model User {
-  id               String      @id @default(uuid())
+model Supplier {
+  id            String          @id @default(uuid())
+  name          String
+  cnpj          String          @unique
+  contactEmail  String?         @map("contact_email")
+  phone         String?
+  address       String?
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id           String        @id @default(uuid())
+  numeroNF     String        @map("numero_nf")
+  supplierId   String        @map("supplier_id")
+  dataCompra   DateTime      @map("data_compra")
+  valorTotal   Decimal       @map("valor_total") @db.Decimal(14, 2)
+  observacoes  String?
+  supplier     Supplier      @relation(fields: [supplierId], references: [id])
+  assets       Asset[]
+  consumables  Consumable[]
+
+  @@map("purchase_orders")
+}
+
+model Company {
+  id           String  @id @default(uuid())
+  nome         String
+  cnpj         String?
+  emailContato String? @map("email_contato")
+  telefone     String?
+  cep          String?
+  rua          String?
+  numero       String?
+  complemento  String?
+  bairro       String?
+  cidade       String?
+  estado       String?
+  users        User[]
+  assets       Asset[]
+
+  @@map("companies")
+}
+
+model Brand {
+  id               String        @id @default(uuid())
   nome             String
-  email            String      @unique
-  samAccountName   String?     @unique
-  cargo            String?
-  empresa          String?
-  cidade           String?
-  licencasO365     String?
-  departamentoId   String?     @map("departamento_id")
-  status           UserStatus  @default(ATIVO)
-  departamento     Department? @relation(fields: [departamentoId], references: [id])
-  assetsEmUso      Asset[]     @relation("AssetUsuarioAtual")
-  assetLogs        AssetLog[]
+  site             String?
+  telefoneSuporte  String?       @map("telefone_suporte")
+  emailSuporte     String?       @map("email_suporte")
+  models           DeviceModel[]
+  assets           Asset[]
+
+  @@map("brands")
+}
+
+model DeviceModel {
+  id               String  @id @default(uuid())
+  nome             String
+  partNumber       String? @map("part_number")
+  mesesGarantia    Int?    @map("meses_garantia")
+  mesesDepreciacao Int?    @map("meses_depreciacao")
+  isSerialized     Boolean @default(false) @map("is_serialized")
+  brandId          String  @map("brand_id")
+  brand            Brand   @relation(fields: [brandId], references: [id])
+  assets           Asset[]
+
+  @@map("device_models")
+}
+
+model StockType {
+  id     String  @id @default(uuid())
+  nome   String
+  assets Asset[]
+
+  @@map("stock_types")
+}
+
+model User {
+  id                  String      @id @default(uuid())
+  nome                String
+  email               String      @unique
+  entraId             String?     @unique @map("entra_id")
+  samAccountName      String?     @unique
+  userPrincipalName   String?     @unique @map("user_principal_name")
+  cargo               String?
+  /** Departamento conforme Microsoft Entra / Graph (`department`). */
+  departamentoEntra   String?     @map("departamento_entra")
+  telefone            String?
+  cidade              String?
+  estado              String?
+  licencasO365        String?
+  isActive            Boolean     @default(true) @map("is_active")
+  departamentoId      String?     @map("departamento_id")
+  companyId           String?     @map("company_id")
+  status              UserStatus  @default(ATIVO)
+  departamento        Department? @relation(fields: [departamentoId], references: [id])
+  company             Company?    @relation(fields: [companyId], references: [id])
+  assetsEmUso    Asset[]     @relation("AssetUsuarioAtual")
+  assetLogs      AssetLog[]
 
   @@map("users")
 }
@@ -52,6 +139,7 @@ model Department {
   id          String  @id @default(uuid())
   nome        String
   localizacao String?
+  centroCusto String? @map("centro_custo")
   users       User[]
 
   @@map("departments")
@@ -68,35 +156,56 @@ model Category {
 }
 
 model Asset {
-  id                   String      @id @default(uuid())
-  tagPatrimonio        String      @unique @map("tag_patrimonio")
-  hostname             String?     @unique
-  numeroSerie          String?     @map("numero_serie")
-  marca                String?
-  modelo               String?
-  sistemaOperacional   String?
-  statusAntivirus      String?
-  dataCompra           DateTime?   @map("data_compra")
-  valor                Decimal?    @db.Decimal(14, 2)
-  status               AssetStatus @default(DISPONIVEL)
-  userId               String?     @map("user_id")
-  categoryId           String      @map("category_id")
-  usuarioAtual         User?       @relation("AssetUsuarioAtual", fields: [userId], references: [id])
-  category             Category    @relation(fields: [categoryId], references: [id])
-  logs                 AssetLog[]
+  id                 String       @id @default(uuid())
+  tagPatrimonio      String       @unique @map("tag_patrimonio")
+  hostname           String?      @unique
+  numeroSerie        String?      @map("numero_serie")
+  observacoes        String?      @db.Text
+  sistemaOperacional String?
+  statusAntivirus    String?
+  dataCompra         DateTime?    @map("data_compra")
+  valor              Decimal?     @db.Decimal(14, 2)
+  status             AssetStatus  @default(DISPONIVEL)
+  userId             String?      @map("user_id")
+  categoryId         String       @map("category_id")
+  companyId          String       @map("company_id")
+  brandId            String       @map("brand_id")
+  modelId            String       @map("model_id")
+  stockTypeId        String         @map("stock_type_id")
+  purchaseOrderId  String?        @map("purchase_order_id")
+  usuarioAtual       User?          @relation("AssetUsuarioAtual", fields: [userId], references: [id])
+  category           Category       @relation(fields: [categoryId], references: [id])
+  company            Company        @relation(fields: [companyId], references: [id])
+  brand              Brand          @relation(fields: [brandId], references: [id])
+  model              DeviceModel    @relation(fields: [modelId], references: [id])
+  stockType          StockType      @relation(fields: [stockTypeId], references: [id])
+  purchaseOrder      PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  logs               AssetLog[]
 
   @@map("assets")
 }
 
 model Consumable {
-  id                String @id @default(uuid())
+  id                String         @id @default(uuid())
   nome              String
-  quantidadeEstoque Int    @default(0) @map("quantidade_estoque")
-  estoqueMinimo     Int    @default(0) @map("estoque_minimo")
-  categoryId        String @map("category_id")
-  category          Category @relation(fields: [categoryId], references: [id])
+  quantidadeEstoque Int            @default(0) @map("quantidade_estoque")
+  estoqueMinimo     Int            @default(0) @map("estoque_minimo")
+  categoryId        String         @map("category_id")
+  purchaseOrderId   String?        @map("purchase_order_id")
+  category          Category       @relation(fields: [categoryId], references: [id])
+  purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
 
   @@map("consumables")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
 }
 
 model AssetLog {
@@ -106,6 +215,10 @@ model AssetLog {
   acao             AssetLogAcao
   dataMovimentacao DateTime     @default(now()) @map("data_movimentacao")
   observacao       String?
+  /** Itens marcados no checklist de entrega (checkout), para auditoria. */
+  checklistResult  Json?        @map("checklist_result")
+  /** ID do chamado técnico (Nexus) vinculado ao checkout. */
+  nexusTicketId    String?      @map("nexus_ticket_id")
   asset            Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
   user             User         @relation(fields: [userId], references: [id])
 

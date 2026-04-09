@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DepartamentoForm } from "./DepartamentoForm";
+import { DepartamentoRowActions } from "@/components/departamentos/departamento-actions";
 
 export default async function DepartamentosPage() {
   const r = await withDb(() =>
@@ -34,13 +35,15 @@ export default async function DepartamentosPage() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Localização</TableHead>
+              <TableHead>Centro de custo</TableHead>
               <TableHead className="text-right">Colaboradores</TableHead>
+              <TableHead className="w-12 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {departamentos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   Nenhum departamento cadastrado.
                 </TableCell>
               </TableRow>
@@ -49,7 +52,13 @@ export default async function DepartamentosPage() {
                 <TableRow key={d.id}>
                   <TableCell className="font-medium">{d.nome}</TableCell>
                   <TableCell>{d.localizacao ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-sm text-muted-foreground">
+                    {d.centroCusto ?? "—"}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{d._count.users}</TableCell>
+                  <TableCell className="text-right">
+                    <DepartamentoRowActions item={d} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

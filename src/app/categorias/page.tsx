@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CategoriaForm } from "./CategoriaForm";
+import { CategoriaRowActions } from "@/components/categorias/categoria-actions";
 
 const tipoLabel = { PATRIMONIO: "Patrimônio", INSUMO: "Insumo" } as const;
 
@@ -41,12 +42,13 @@ export default async function CategoriasPage() {
               <TableHead>Tipo</TableHead>
               <TableHead className="text-right">Equipamentos</TableHead>
               <TableHead className="text-right">Insumos</TableHead>
+              <TableHead className="w-12 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {categorias.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   Nenhuma categoria cadastrada.
                 </TableCell>
               </TableRow>
@@ -59,6 +61,9 @@ export default async function CategoriasPage() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{c._count.assets}</TableCell>
                   <TableCell className="text-right tabular-nums">{c._count.consumables}</TableCell>
+                  <TableCell className="text-right">
+                    <CategoriaRowActions item={c} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AssetStatusBadge } from "@/lib/asset-status-badge";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MovimentacaoForm } from "./MovimentacaoForm";
@@ -35,6 +36,10 @@ export default async function EquipamentoDetalhePage({ params }: { params: Promi
         where: { id },
         include: {
           category: true,
+          company: true,
+          brand: true,
+          model: true,
+          stockType: true,
           usuarioAtual: { select: { id: true, nome: true, email: true } },
           logs: {
             orderBy: { dataMovimentacao: "desc" },
@@ -73,7 +78,8 @@ export default async function EquipamentoDetalhePage({ params }: { params: Promi
               {asset.tagPatrimonio}
             </h1>
             <p className="text-muted-foreground">
-              {asset.marca ?? "—"} {asset.modelo ?? ""} · {asset.category.nome}
+              {[asset.brand.nome, asset.model.nome].filter(Boolean).join(" ") || "—"} ·{" "}
+              {asset.category.nome} · {asset.company.nome}
             </p>
           </div>
           <AssetStatusBadge status={asset.status} />
@@ -87,6 +93,10 @@ export default async function EquipamentoDetalhePage({ params }: { params: Promi
             <CardDescription>Informações cadastrais e de software.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
+            <DetailRow label="Empresa" value={asset.company.nome} />
+            <DetailRow label="Marca" value={asset.brand.nome} />
+            <DetailRow label="Modelo" value={asset.model.nome} />
+            <DetailRow label="Tipo de estoque" value={asset.stockType.nome} />
             <DetailRow label="Hostname" value={asset.hostname} />
             <DetailRow label="Número de série" value={asset.numeroSerie} />
             <DetailRow label="Sistema operacional" value={asset.sistemaOperacional} />
@@ -136,6 +146,7 @@ export default async function EquipamentoDetalhePage({ params }: { params: Promi
               <TableRow>
                 <TableHead>Data</TableHead>
                 <TableHead>Ação</TableHead>
+                <TableHead>Chamado Nexus</TableHead>
                 <TableHead>Colaborador</TableHead>
                 <TableHead>Observação</TableHead>
               </TableRow>

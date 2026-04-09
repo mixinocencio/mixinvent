@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example
+.cursor
+terminals
+coverage
+.husky
+.vscode
+*.log

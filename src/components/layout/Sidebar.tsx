@@ -11,10 +11,21 @@ import {
   Package,
   Settings,
   Users,
-  Building2,
+  Briefcase,
+  Building,
+  Copyright,
+  MonitorSmartphone,
   Tags,
+  Archive,
   History,
   FileSpreadsheet,
+  Receipt,
+  Truck,
+  Settings2,
+  Zap,
+  RefreshCw,
+  BarChart3,
+  UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +37,26 @@ const navLinkClass = (active: boolean) =>
       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
   );
 
+const CADASTROS_PREFIXES = [
+  "/colaboradores",
+  "/empresas",
+  "/departamentos",
+  "/marcas",
+  "/modelos",
+  "/fornecedores",
+  "/categorias",
+  "/tipos-estoque",
+] as const;
+
+const ADMIN_PREFIXES = ["/admin"] as const;
+
 export function Sidebar() {
   const pathname = usePathname();
-  const [cadastrosOpen, setCadastrosOpen] = useState(
-    ["/colaboradores", "/departamentos", "/categorias"].some((p) => pathname.startsWith(p)),
+  const [cadastrosOpen, setCadastrosOpen] = useState(() =>
+    CADASTROS_PREFIXES.some((p) => pathname.startsWith(p)),
+  );
+  const [adminOpen, setAdminOpen] = useState(() =>
+    ADMIN_PREFIXES.some((p) => pathname.startsWith(p)),
   );
 
   return (
@@ -52,6 +79,10 @@ export function Sidebar() {
         <Link href="/insumos" className={navLinkClass(pathname.startsWith("/insumos"))}>
           <Package className="size-4 shrink-0" />
           Insumos
+        </Link>
+        <Link href="/compras/nova" className={navLinkClass(pathname.startsWith("/compras"))}>
+          <Receipt className="size-4 shrink-0" />
+          Compras
         </Link>
         <Link href="/movimentacoes" className={navLinkClass(pathname.startsWith("/movimentacoes"))}>
           <History className="size-4 shrink-0" />
@@ -91,21 +122,123 @@ export function Sidebar() {
                 className={cn(navLinkClass(pathname.startsWith("/colaboradores")), "py-1.5")}
               >
                 <Users className="size-4 shrink-0" />
-                Colaboradores
+                Usuários
+              </Link>
+              <Link
+                href="/empresas"
+                className={cn(navLinkClass(pathname.startsWith("/empresas")), "py-1.5")}
+              >
+                <Briefcase className="size-4 shrink-0" />
+                Empresas
               </Link>
               <Link
                 href="/departamentos"
                 className={cn(navLinkClass(pathname.startsWith("/departamentos")), "py-1.5")}
               >
-                <Building2 className="size-4 shrink-0" />
+                <Building className="size-4 shrink-0" />
                 Departamentos
+              </Link>
+              <Link
+                href="/marcas"
+                className={cn(navLinkClass(pathname.startsWith("/marcas")), "py-1.5")}
+              >
+                <Copyright className="size-4 shrink-0" />
+                Marcas
+              </Link>
+              <Link
+                href="/modelos"
+                className={cn(navLinkClass(pathname.startsWith("/modelos")), "py-1.5")}
+              >
+                <MonitorSmartphone className="size-4 shrink-0" />
+                Modelos
+              </Link>
+              <Link
+                href="/fornecedores"
+                className={cn(navLinkClass(pathname.startsWith("/fornecedores")), "py-1.5")}
+              >
+                <Truck className="size-4 shrink-0" />
+                Fornecedores
               </Link>
               <Link
                 href="/categorias"
                 className={cn(navLinkClass(pathname.startsWith("/categorias")), "py-1.5")}
               >
                 <Tags className="size-4 shrink-0" />
-                Categorias
+                Tipos/Categorias
+              </Link>
+              <Link
+                href="/tipos-estoque"
+                className={cn(navLinkClass(pathname.startsWith("/tipos-estoque")), "py-1.5")}
+              >
+                <Archive className="size-4 shrink-0" />
+                Tipos de Estoque
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => setAdminOpen((o) => !o)}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              adminOpen
+                ? "bg-sidebar-accent/60 text-sidebar-accent-foreground"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80",
+            )}
+          >
+            <Settings2 className="size-4 shrink-0" />
+            <span className="flex-1 text-left">Administração</span>
+            {adminOpen ? (
+              <ChevronDown className="size-4 shrink-0 opacity-70" />
+            ) : (
+              <ChevronRight className="size-4 shrink-0 opacity-70" />
+            )}
+          </button>
+          {adminOpen && (
+            <div className="mt-1 flex flex-col gap-0.5 border-l border-sidebar-border pl-3 ml-3">
+              <Link
+                href="/admin/dashboard"
+                className={cn(navLinkClass(pathname.startsWith("/admin/dashboard")), "py-1.5")}
+              >
+                <BarChart3 className="size-4 shrink-0" />
+                Dashboard TI
+              </Link>
+              <Link
+                href="/admin/colaboradores"
+                className={cn(navLinkClass(pathname.startsWith("/admin/colaboradores")), "py-1.5")}
+              >
+                <Users className="size-4 shrink-0" />
+                Colaboradores
+              </Link>
+              <Link
+                href="/admin/auditoria"
+                className={cn(navLinkClass(pathname.startsWith("/admin/auditoria")), "py-1.5")}
+              >
+                <UserX className="size-4 shrink-0" />
+                Auditoria
+              </Link>
+              <Link
+                href="/admin/integracoes"
+                className={cn(navLinkClass(pathname.startsWith("/admin/integracoes")), "py-1.5")}
+              >
+                <Zap className="size-4 shrink-0" />
+                Integrações
+              </Link>
+              <Link
+                href="/admin/sync"
+                className={cn(navLinkClass(pathname.startsWith("/admin/sync")), "py-1.5")}
+              >
+                <RefreshCw className="size-4 shrink-0" />
+                Sincronização
+              </Link>
+              <Link
+                href="/admin/importacao"
+                className={cn(navLinkClass(pathname.startsWith("/admin/importacao")), "py-1.5")}
+              >
+                <FileSpreadsheet className="size-4 shrink-0" />
+                Importação CSV
               </Link>
             </div>
           )}

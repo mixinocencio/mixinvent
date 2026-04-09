@@ -51,6 +51,7 @@ export default async function MovimentacoesPage() {
               <TableHead>Data</TableHead>
               <TableHead>Equipamento</TableHead>
               <TableHead>Ação</TableHead>
+              <TableHead>Chamado Nexus</TableHead>
               <TableHead>Colaborador</TableHead>
               <TableHead>Observação</TableHead>
             </TableRow>

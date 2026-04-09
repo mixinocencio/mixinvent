@@ -34,15 +34,15 @@ function baseUserRow(u: {
   samAccountName: string | null;
   nome: string;
   cargo: string | null;
-  empresa: string | null;
   licencasO365: string | null;
   departamento: { nome: string } | null;
+  company: { nome: string } | null;
 }): Omit<AuditoriaGeralRow, "Equipamento (Hostname)" | "Service Tag" | "Tipo (Categoria)" | "Marca" | "Modelo" | "Antivirus" | "Status"> {
   return {
     SamAccountName: u.samAccountName ?? "",
     "Nome (User)": u.nome,
     Cargo: u.cargo ?? "",
-    Empresa: u.empresa ?? "",
+    Empresa: u.company?.nome ?? "",
     Departamento: u.departamento?.nome ?? "",
     "Licenças O365": u.licencasO365 ?? "",
   };
@@ -59,13 +59,14 @@ export default async function AuditoriaGeralPage() {
         orderBy: { nome: "asc" },
         include: {
           departamento: true,
-          assetsEmUso: { include: { category: true } },
+          company: true,
+          assetsEmUso: { include: { category: true, brand: true, model: true } },
         },
       }),
       prisma.asset.findMany({
         where: { userId: null },
         orderBy: { tagPatrimonio: "asc" },
-        include: { category: true },
+        include: { category: true, brand: true, model: true },
       }),
     ]),
   );
@@ -95,8 +96,8 @@ export default async function AuditoriaGeralPage() {
           "Equipamento (Hostname)": a.hostname ?? "",
           "Service Tag": a.tagPatrimonio,
           "Tipo (Categoria)": a.category.nome,
-          Marca: a.marca ?? "",
-          Modelo: a.modelo ?? "",
+          Marca: a.brand.nome,
+          Modelo: a.model.nome,
           Antivirus: a.statusAntivirus ?? "",
           Status: `${assetStatusLabel[a.status]} · ${userStatusLabel[u.status]}`,
         });
@@ -116,8 +117,8 @@ export default async function AuditoriaGeralPage() {
       "Equipamento (Hostname)": a.hostname ?? "",
       "Service Tag": a.tagPatrimonio,
       "Tipo (Categoria)": a.category.nome,
-      Marca: a.marca ?? "",
-      Modelo: a.modelo ?? "",
+      Marca: a.brand.nome,
+      Modelo: a.model.nome,
       Antivirus: a.statusAntivirus ?? "",
       "Licenças O365": "",
       Status: assetStatusLabel[a.status],
