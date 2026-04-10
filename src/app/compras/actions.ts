@@ -1,13 +1,20 @@
 "use server";
 
-import { AssetStatus, Prisma } from "@prisma/client";
+import {
+  AssetStatus,
+  OrigemEntrada,
+  Prisma,
+  TipoMovimentacaoInsumo,
+} from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
+import { formatCnpjDigits } from "@/lib/format-cnpj";
 import { firstZodIssue } from "@/lib/zod-errors";
-import { entradaCompraSchema } from "./schema";
 
-function parseDataCompraLocal(isoDate: string): Date {
+import { registrarEntradaComNFSchema } from "./schema";
+
+function parseDataEmissaoLocal(isoDate: string): Date {
   const parts = isoDate.split("-").map(Number);
   if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
     return new Date(NaN);
@@ -16,166 +23,149 @@ function parseDataCompraLocal(isoDate: string): Date {
   return new Date(y, m - 1, d, 12, 0, 0, 0);
 }
 
-function buildTagPatrimonio(prefixo: string, index: number): string {
-  const base = prefixo.trim().replace(/\s+/g, "-");
-  return `${base}-${String(index + 1).padStart(3, "0")}`;
+function trimOrNull(s: string | undefined): string | null {
+  const t = s?.trim();
+  return t === "" || t === undefined ? null : t;
 }
 
-export type ProcessarEntradaCompraResult =
-  | { error: string }
-  | {
-      ok: true;
-      redirectTo: "/equipamentos" | "/insumos";
-      message: string;
-    };
+export type RegistrarEntradaComNFResult =
+  | { ok: true; notaFiscalId: string; ativosCriados: number; insumosMovimentados: number }
+  | { ok: false; error: string };
 
-export async function processarEntradaCompra(data: unknown): Promise<ProcessarEntradaCompraResult> {
-  const parsed = entradaCompraSchema.safeParse(data);
+export async function registrarEntradaComNF(
+  data: unknown,
+): Promise<RegistrarEntradaComNFResult> {
+  const parsed = registrarEntradaComNFSchema.safeParse(data);
   if (!parsed.success) {
-    return { error: firstZodIssue(parsed.error) };
+    return { ok: false, error: firstZodIssue(parsed.error) };
   }
 
   const d = parsed.data;
-  const dataCompra = parseDataCompraLocal(d.dataCompra);
-  if (Number.isNaN(dataCompra.getTime())) {
-    return { error: "Data da compra inválida." };
+  const dataEmissao = parseDataEmissaoLocal(d.dataEmissao);
+  if (Number.isNaN(dataEmissao.getTime())) {
+    return { ok: false, error: "Data inválida." };
   }
-
-  const valorTotalNum = d.quantidade * d.valorUnitario;
-  const valorTotal = new Prisma.Decimal(valorTotalNum.toFixed(2));
-  const valorUnitDec = new Prisma.Decimal(Number(d.valorUnitario).toFixed(2));
 
   const supplier = await prisma.supplier.findUnique({ where: { id: d.supplierId } });
   if (!supplier) {
-    return { error: "Fornecedor inválido ou removido." };
+    return { ok: false, error: "Fornecedor inválido ou removido." };
   }
 
+  const fornecedorLabel = `${supplier.name} · ${formatCnpjDigits(supplier.cnpj)}`;
+
   try {
-    if (d.tipoItem === "EQUIPAMENTO") {
-      const modelId = d.modelId!;
-      const categoryId = d.categoryId!;
-      const companyId = d.companyId!;
-      const stockTypeId = d.stockTypeId!;
-      const prefixo = d.prefixoTag!.trim();
+    const result = await prisma.$transaction(async (tx) => {
+      const nf = await tx.notaFiscal.create({
+        data: {
+          numero: d.numero.trim(),
+          fornecedor: fornecedorLabel,
+          dataEmissao,
+          valorTotal: d.valorTotal!,
+        },
+      });
 
-      const [category, company, stockType, model] = await Promise.all([
-        prisma.category.findUnique({ where: { id: categoryId } }),
-        prisma.company.findUnique({ where: { id: companyId } }),
-        prisma.stockType.findUnique({ where: { id: stockTypeId } }),
-        prisma.deviceModel.findUnique({
-          where: { id: modelId },
-          select: { id: true, nome: true, brandId: true, isSerialized: true },
-        }),
-      ]);
+      for (const row of d.ativos) {
+        const [category, model] = await Promise.all([
+          tx.category.findUnique({ where: { id: row.categoryId } }),
+          tx.deviceModel.findUnique({
+            where: { id: row.modelId },
+            select: { id: true, brandId: true, isSerialized: true },
+          }),
+        ]);
 
-      if (!category || category.tipo !== "PATRIMONIO") {
-        return { error: "Categoria inválida: use uma categoria do tipo Patrimônio." };
-      }
-      if (!company) return { error: "Empresa inválida." };
-      if (!stockType) return { error: "Tipo de estoque inválido." };
-      if (!model) return { error: "Modelo inválido." };
-
-      const q = d.quantidade;
-      const seriesInput = d.numerosSerie.map((s) => s.trim());
-
-      if (model.isSerialized) {
-        if (seriesInput.length !== q) {
-          return { error: `Informe exatamente ${q} número(s) de série para este modelo serializado.` };
+        if (!category || category.tipo !== "PATRIMONIO") {
+          throw new Error("CATEGORIA_INVALIDA");
         }
-        const emptyIdx = seriesInput.findIndex((s) => !s);
-        if (emptyIdx >= 0) {
-          return { error: `Preencha o número de série do item ${emptyIdx + 1}.` };
+        if (!model || model.brandId !== row.brandId) {
+          throw new Error("MODELO_INVALIDO");
         }
-      }
+        if (model.isSerialized && !trimOrNull(row.numeroSerie)) {
+          throw new Error("SERIE_OBRIGATORIA");
+        }
 
-      await prisma.$transaction(async (tx) => {
-        const po = await tx.purchaseOrder.create({
+        await tx.asset.create({
           data: {
-            numeroNF: d.numeroNF.trim(),
-            supplierId: d.supplierId,
-            dataCompra,
-            valorTotal,
-            observacoes: d.observacoes?.trim() || null,
+            tagPatrimonio: row.tagPatrimonio.trim(),
+            hostname: trimOrNull(row.nome),
+            numeroSerie: trimOrNull(row.numeroSerie),
+            status: AssetStatus.DISPONIVEL,
+            dataCompra: dataEmissao,
+            origem: OrigemEntrada.NOTA_FISCAL,
+            notaFiscal: { connect: { id: nf.id } },
+            category: { connect: { id: row.categoryId } },
+            company: { connect: { id: d.companyId } },
+            brand: { connect: { id: row.brandId } },
+            model: { connect: { id: row.modelId } },
+            stockType: { connect: { id: d.stockTypeId } },
+          },
+        });
+      }
+
+      let insumosMovimentados = 0;
+      for (const line of d.insumos) {
+        const consumable = await tx.consumable.findUnique({
+          where: { id: line.consumableId },
+          include: { category: { select: { tipo: true } } },
+        });
+        if (!consumable || consumable.category.tipo !== "INSUMO") {
+          throw new Error("INSUMO_INVALIDO");
+        }
+
+        await tx.movimentacaoInsumo.create({
+          data: {
+            consumableId: line.consumableId,
+            quantidade: line.quantidade,
+            tipo: TipoMovimentacaoInsumo.ENTRADA,
+            origem: OrigemEntrada.NOTA_FISCAL,
+            notaFiscalId: nf.id,
           },
         });
 
-        for (let i = 0; i < q; i++) {
-          await tx.asset.create({
-            data: {
-              tagPatrimonio: buildTagPatrimonio(prefixo, i),
-              numeroSerie: model.isSerialized ? seriesInput[i] : null,
-              dataCompra,
-              valor: valorUnitDec,
-              status: AssetStatus.DISPONIVEL,
-              purchaseOrder: { connect: { id: po.id } },
-              category: { connect: { id: categoryId } },
-              company: { connect: { id: companyId } },
-              brand: { connect: { id: model.brandId } },
-              model: { connect: { id: model.id } },
-              stockType: { connect: { id: stockTypeId } },
-            },
-          });
-        }
-      });
-
-      revalidatePath("/equipamentos");
-      revalidatePath("/");
+        await tx.consumable.update({
+          where: { id: line.consumableId },
+          data: { quantidadeEstoque: { increment: line.quantidade } },
+        });
+        insumosMovimentados += 1;
+      }
 
       return {
-        ok: true,
-        redirectTo: "/equipamentos",
-        message: `${q} equipamento(ns) cadastrado(s) vinculado(s) à NF ${d.numeroNF.trim()} (${model.nome}).`,
+        notaFiscalId: nf.id,
+        ativosCriados: d.ativos.length,
+        insumosMovimentados,
       };
-    }
-
-    const consumableId = d.consumableId!;
-    const consumable = await prisma.consumable.findUnique({
-      where: { id: consumableId },
-      include: { category: true },
-    });
-    if (!consumable) return { error: "Insumo não encontrado." };
-    if (consumable.category.tipo !== "INSUMO") {
-      return { error: "Item selecionado não é um insumo válido." };
-    }
-
-    const qty = d.quantidade;
-
-    await prisma.$transaction(async (tx) => {
-      const po = await tx.purchaseOrder.create({
-        data: {
-          numeroNF: d.numeroNF.trim(),
-          supplierId: d.supplierId,
-          dataCompra,
-          valorTotal,
-          observacoes: d.observacoes?.trim() || null,
-        },
-      });
-
-      await tx.consumable.update({
-        where: { id: consumableId },
-        data: {
-          quantidadeEstoque: { increment: qty },
-          purchaseOrder: { connect: { id: po.id } },
-        },
-      });
     });
 
-    revalidatePath("/insumos");
+    revalidatePath("/equipamentos");
     revalidatePath("/");
+    revalidatePath("/insumos");
+    revalidatePath("/compras/nova");
 
-    return {
-      ok: true,
-      redirectTo: "/insumos",
-      message: `${qty} unidade(s) de "${consumable.nome}" adicionada(s) ao estoque (NF ${d.numeroNF.trim()}).`,
-    };
+    return { ok: true, ...result };
   } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === "CATEGORIA_INVALIDA") {
+        return { ok: false, error: "Uma das categorias não é do tipo Patrimônio." };
+      }
+      if (e.message === "MODELO_INVALIDO") {
+        return { ok: false, error: "Modelo incompatível com a marca informada em uma das linhas." };
+      }
+      if (e.message === "SERIE_OBRIGATORIA") {
+        return {
+          ok: false,
+          error: "Modelo serializado exige número de série preenchido na linha correspondente.",
+        };
+      }
+      if (e.message === "INSUMO_INVALIDO") {
+        return { ok: false, error: "Insumo inválido ou categoria não é do tipo Insumo." };
+      }
+    }
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return {
-        error:
-          "Conflito de unicidade: tag de patrimônio ou hostname já existe no sistema. Ajuste o prefixo das tags.",
+        ok: false,
+        error: "Tag de patrimônio ou hostname duplicado. Ajuste as linhas e tente novamente.",
       };
     }
     console.error(e);
-    return { error: "Não foi possível registrar a entrada. Tente novamente." };
+    return { ok: false, error: "Não foi possível registrar a entrada." };
   }
 }

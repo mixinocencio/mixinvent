@@ -14,9 +14,19 @@ export default async function NovaCompraPage() {
         orderBy: { name: "asc" },
         select: { id: true, name: true, cnpj: true },
       }),
+      prisma.brand.findMany({
+        orderBy: { nome: "asc" },
+        select: { id: true, nome: true },
+      }),
       prisma.deviceModel.findMany({
         orderBy: { nome: "asc" },
-        select: { id: true, nome: true, isSerialized: true, brand: { select: { nome: true } } },
+        select: {
+          id: true,
+          nome: true,
+          brandId: true,
+          isSerialized: true,
+          brand: { select: { nome: true } },
+        },
       }),
       prisma.consumable.findMany({
         orderBy: { nome: "asc" },
@@ -40,11 +50,12 @@ export default async function NovaCompraPage() {
 
   if (!r.ok) return <DbOfflineNotice title="Nova entrada por NF" />;
 
-  const [fornecedores, modelosRaw, insumos, categorias, empresas, tiposEstoque] = r.data;
+  const [fornecedores, marcas, modelosRaw, insumos, categorias, empresas, tiposEstoque] = r.data;
 
   const modelos = modelosRaw.map((m) => ({
     id: m.id,
     nome: m.nome,
+    brandId: m.brandId,
     brandNome: m.brand.nome,
     isSerialized: m.isSerialized,
   }));
@@ -74,6 +85,7 @@ export default async function NovaCompraPage() {
 
       <NovaEntradaCompraForm
         fornecedores={fornecedores}
+        marcas={marcas}
         modelos={modelos}
         insumos={insumos}
         categorias={categorias}

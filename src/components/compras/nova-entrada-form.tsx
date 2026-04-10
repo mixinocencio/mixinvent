@@ -1,54 +1,263 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
+import { useFieldArray, useForm, type Control, type FieldValues, type UseFormSetValue } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { processarEntradaCompra } from "@/app/compras/actions";
+import { Plus, Trash2 } from "lucide-react";
+
+import { registrarEntradaComNF } from "@/app/compras/actions";
+import {
+  registrarEntradaComNFSchema,
+  type RegistrarEntradaComNFInput,
+} from "@/app/compras/schema";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  looseControl,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { formatCnpjDigits } from "@/lib/format-cnpj";
 
-export type ModeloCompraOption = { id: string; nome: string; brandNome: string; isSerialized: boolean };
+export type ModeloCompraOption = {
+  id: string;
+  nome: string;
+  brandId: string;
+  brandNome: string;
+  isSerialized: boolean;
+};
+export type MarcaCompraOption = { id: string; nome: string };
 export type InsumoCompraOption = { id: string; nome: string };
 export type CategoriaPatOption = { id: string; nome: string };
 export type EmpresaCompraOption = { id: string; nome: string };
 export type TipoEstoqueOption = { id: string; nome: string };
 export type FornecedorCompraOption = { id: string; name: string; cnpj: string };
 
-const moneyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-function parseMoney(s: string): number {
-  const t = s.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  const n = Number(t);
-  return Number.isFinite(n) ? n : NaN;
+function emptyLinhaAtivo(cat: string): RegistrarEntradaComNFInput["ativos"][number] {
+  return {
+    tagPatrimonio: "",
+    nome: "",
+    categoryId: cat,
+    brandId: "",
+    modelId: "",
+    numeroSerie: "",
+  };
 }
 
-function gerarPrefixoTagAutomatico(numeroNF: string): string {
-  const nf = numeroNF.trim().replace(/\s+/g, "-").slice(0, 32) || "NF";
-  const r = Math.random().toString(36).slice(2, 8).toUpperCase();
-  const d = new Date();
-  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  return `TAG-${nf}-${stamp}-${r}`;
+function emptyLinhaInsumo(consumableId: string): RegistrarEntradaComNFInput["insumos"][number] {
+  return { consumableId, quantidade: 1 };
 }
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function buildDefaults(
+  fornecedores: FornecedorCompraOption[],
+  categorias: CategoriaPatOption[],
+  empresas: EmpresaCompraOption[],
+  tiposEstoque: TipoEstoqueOption[],
+  insumos: InsumoCompraOption[],
+): RegistrarEntradaComNFInput {
+  const today = new Date().toISOString().slice(0, 10);
+  const cat = categorias[0]?.id ?? "";
+  return {
+    numero: "",
+    supplierId: fornecedores[0]?.id ?? "",
+    dataEmissao: today,
+    valorTotal: undefined,
+    companyId: empresas[0]?.id ?? "",
+    stockTypeId: tiposEstoque[0]?.id ?? "",
+    ativos: [emptyLinhaAtivo(cat)],
+    insumos: [],
+  };
+}
+
+function LinhaEquipamento({
+  index,
+  categorias,
+  marcas,
+  modelos,
+  control,
+  setValue,
+  brandId,
+  modelId,
+  canRemove,
+  onRemove,
+}: {
+  index: number;
+  categorias: CategoriaPatOption[];
+  marcas: MarcaCompraOption[];
+  modelos: ModeloCompraOption[];
+  control: Control<FieldValues>;
+  setValue: UseFormSetValue<RegistrarEntradaComNFInput>;
+  brandId: string;
+  modelId: string;
+  canRemove: boolean;
+  onRemove: () => void;
+}) {
+  const modelo = useMemo(() => modelos.find((m) => m.id === modelId), [modelos, modelId]);
+  const modelosFiltrados = useMemo(
+    () => modelos.filter((m) => m.brandId === brandId),
+    [modelos, brandId],
+  );
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/20 p-4 md:flex-row md:flex-wrap md:items-end">
+      {modelo?.isSerialized ? (
+        <p className="text-muted-foreground w-full text-xs">
+          Este modelo exige <strong>número de série</strong> nesta linha.
+        </p>
+      ) : null}
+      <FormField
+        control={control}
+        name={`ativos.${index}.tagPatrimonio`}
+        render={({ field }) => (
+          <FormItem className="min-w-[120px] flex-1">
+            <FormLabel className="text-xs">Tag patrimônio *</FormLabel>
+            <FormControl>
+              <Input className="h-9 font-mono text-sm" autoComplete="off" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`ativos.${index}.nome`}
+        render={({ field }) => (
+          <FormItem className="min-w-[140px] flex-1">
+            <FormLabel className="text-xs">Nome (hostname)</FormLabel>
+            <FormControl>
+              <Input className="h-9 text-sm" placeholder="Opcional" autoComplete="off" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`ativos.${index}.categoryId`}
+        render={({ field }) => (
+          <FormItem className="min-w-[160px] flex-1">
+            <FormLabel className="text-xs">Categoria *</FormLabel>
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {categorias.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`ativos.${index}.brandId`}
+        render={({ field }) => (
+          <FormItem className="min-w-[140px] flex-1">
+            <FormLabel className="text-xs">Marca *</FormLabel>
+            <Select
+              value={field.value}
+              onValueChange={(v) => {
+                field.onChange(v);
+                setValue(`ativos.${index}.modelId`, "");
+              }}
+            >
+              <FormControl>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Marca" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {marcas.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`ativos.${index}.modelId`}
+        render={({ field }) => (
+          <FormItem className="min-w-[180px] flex-1">
+            <FormLabel className="text-xs">Modelo *</FormLabel>
+            <Select value={field.value} onValueChange={field.onChange} disabled={!brandId}>
+              <FormControl>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder={brandId ? "Modelo" : "Marca primeiro"} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {modelosFiltrados.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`ativos.${index}.numeroSerie`}
+        render={({ field }) => (
+          <FormItem className="min-w-[130px] flex-1">
+            <FormLabel className="text-xs">Nº série</FormLabel>
+            <FormControl>
+              <Input className="h-9 text-sm" placeholder="Se serializado" autoComplete="off" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <div className="flex shrink-0 pb-0.5 md:pb-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:text-destructive"
+          disabled={!canRemove}
+          onClick={onRemove}
+          aria-label="Remover equipamento"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function NovaEntradaCompraForm({
   fornecedores,
   modelos,
+  marcas,
   insumos,
   categorias,
   empresas,
@@ -56,394 +265,353 @@ export function NovaEntradaCompraForm({
 }: {
   fornecedores: FornecedorCompraOption[];
   modelos: ModeloCompraOption[];
+  marcas: MarcaCompraOption[];
   insumos: InsumoCompraOption[];
   categorias: CategoriaPatOption[];
   empresas: EmpresaCompraOption[];
   tiposEstoque: TipoEstoqueOption[];
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
-  const [numeroNF, setNumeroNF] = useState("");
-  const [supplierId, setSupplierId] = useState(fornecedores[0]?.id ?? "");
-  const [dataCompra, setDataCompra] = useState("");
-  const [observacoes, setObservacoes] = useState("");
-
-  const [produtoKey, setProdutoKey] = useState<string>("");
-  const [quantidade, setQuantidade] = useState(1);
-  const [valorUnitarioStr, setValorUnitarioStr] = useState("");
-
-  const [prefixoTag, setPrefixoTag] = useState("");
-  const [companyId, setCompanyId] = useState(empresas[0]?.id ?? "");
-  const [categoryId, setCategoryId] = useState(categorias[0]?.id ?? "");
-  const [stockTypeId, setStockTypeId] = useState(tiposEstoque[0]?.id ?? "");
-  const [numerosSerie, setNumerosSerie] = useState<string[]>([]);
-
-  const tipoItem = useMemo(() => {
-    if (produtoKey.startsWith("e:")) return "EQUIPAMENTO" as const;
-    if (produtoKey.startsWith("c:")) return "INSUMO" as const;
-    return null;
-  }, [produtoKey]);
-
-  const qtd = Math.max(1, Math.floor(quantidade) || 1);
-
-  const modelIdEquip = useMemo(() => {
-    if (!produtoKey.startsWith("e:")) return null;
-    return produtoKey.slice(2);
-  }, [produtoKey]);
-
-  const selectedModelo = useMemo(
-    () => (modelIdEquip ? modelos.find((m) => m.id === modelIdEquip) : undefined),
-    [modelIdEquip, modelos],
+  const defaultValues = useMemo(
+    () => buildDefaults(fornecedores, categorias, empresas, tiposEstoque, insumos),
+    [fornecedores, categorias, empresas, tiposEstoque, insumos],
   );
 
-  const requiresSerial = tipoItem === "EQUIPAMENTO" && selectedModelo?.isSerialized === true;
+  const form = useForm<RegistrarEntradaComNFInput>({
+    resolver: zodResolver(registrarEntradaComNFSchema) as never,
+    defaultValues,
+  });
 
-  useEffect(() => {
-    if (tipoItem !== "EQUIPAMENTO" || !requiresSerial) {
-      setNumerosSerie([]);
-      return;
-    }
-    setNumerosSerie((prev) => {
-      const next = [...prev];
-      while (next.length < qtd) next.push("");
-      return next.slice(0, qtd);
-    });
-  }, [tipoItem, requiresSerial, qtd]);
+  const { fields: ativoFields, append: appendAtivo, remove: removeAtivo } = useFieldArray({
+    control: form.control,
+    name: "ativos",
+  });
 
-  const valorUnitario = parseMoney(valorUnitarioStr);
-  const valorTotalNum = Number.isFinite(valorUnitario) ? qtd * valorUnitario : NaN;
-  const valorTotalFmt = Number.isFinite(valorTotalNum) ? moneyFmt.format(valorTotalNum) : "—";
+  const { fields: insumoFields, append: appendInsumo, remove: removeInsumo } = useFieldArray({
+    control: form.control,
+    name: "insumos",
+  });
 
-  const supplierOk = UUID_RE.test(supplierId);
-
-  const canSubmit =
-    numeroNF.trim() &&
-    supplierOk &&
-    dataCompra &&
-    produtoKey &&
-    Number.isFinite(valorUnitario) &&
-    valorUnitario >= 0;
+  const catPadrao = categorias[0]?.id ?? "";
+  const insumoPadrao = insumos[0]?.id ?? "";
 
   const missingCatalog =
     fornecedores.length === 0
       ? "Cadastre ao menos um fornecedor para vincular à nota fiscal."
-      : modelos.length === 0 && insumos.length === 0
-        ? "Cadastre modelos de equipamento ou insumos para registrar compras."
-        : tipoItem === "EQUIPAMENTO" && modelos.length === 0
-          ? "Não há modelos cadastrados para entrada de equipamentos."
-          : tipoItem === "INSUMO" && insumos.length === 0
-            ? "Não há insumos cadastrados."
-            : tipoItem === "EQUIPAMENTO" &&
-                (categorias.length === 0 || empresas.length === 0 || tiposEstoque.length === 0)
-              ? "Cadastre ao menos uma categoria Patrimônio, empresa e tipo de estoque para gerar equipamentos."
-              : null;
+      : categorias.length === 0 || empresas.length === 0 || tiposEstoque.length === 0
+        ? "Cadastre categoria Patrimônio, empresa e tipo de estoque para registrar equipamentos."
+        : marcas.length === 0 || modelos.length === 0
+          ? "Cadastre marcas e modelos para incluir equipamentos."
+          : null;
 
-  function setSerieAt(i: number, v: string) {
-    setNumerosSerie((prev) => {
-      const next = [...prev];
-      next[i] = v;
-      return next;
-    });
+  async function onSubmit(values: RegistrarEntradaComNFInput) {
+    const r = await registrarEntradaComNF(values);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
+    const parts: string[] = [];
+    if (r.ativosCriados > 0) parts.push(`${r.ativosCriados} equipamento(s)`);
+    if (r.insumosMovimentados > 0) parts.push(`${r.insumosMovimentados} linha(s) de insumo`);
+    toast.success(`Entrada registrada: ${parts.join(" e ")} vinculado(s) à NF.`);
+    form.reset(buildDefaults(fornecedores, categorias, empresas, tiposEstoque, insumos));
+    router.refresh();
   }
 
   return (
-    <form
-      className="mx-auto max-w-2xl space-y-8"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!tipoItem) {
-          toast.error("Selecione um produto.");
-          return;
-        }
-        if (!supplierOk) {
-          toast.error("Selecione um fornecedor.");
-          return;
-        }
-        if (!Number.isFinite(valorUnitario) || valorUnitario < 0) {
-          toast.error("Informe um valor unitário válido.");
-          return;
-        }
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit as never)}
+        className="mx-auto max-w-2xl space-y-8"
+      >
+        <section className="space-y-4 rounded-xl border border-border bg-card p-6">
+          <h2 className="font-semibold text-foreground">Dados da nota fiscal</h2>
+          {fornecedores.length === 0 ? (
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Não há fornecedores cadastrados.{" "}
+              <Link href="/fornecedores" className="font-medium underline underline-offset-2">
+                Cadastrar fornecedores
+              </Link>
+            </p>
+          ) : null}
+          {missingCatalog ? (
+            <p className="text-sm text-amber-800 dark:text-amber-200">{missingCatalog}</p>
+          ) : null}
 
-        const modelId = produtoKey.startsWith("e:") ? produtoKey.slice(2) : undefined;
-        const consumableId = produtoKey.startsWith("c:") ? produtoKey.slice(2) : undefined;
-
-        const payload = {
-          numeroNF,
-          supplierId,
-          dataCompra,
-          observacoes: observacoes.trim() || undefined,
-          tipoItem,
-          quantidade: qtd,
-          valorUnitario,
-          numerosSerie: tipoItem === "EQUIPAMENTO" ? numerosSerie : [],
-          prefixoTag: tipoItem === "EQUIPAMENTO" ? prefixoTag : undefined,
-          companyId: tipoItem === "EQUIPAMENTO" ? companyId : undefined,
-          categoryId: tipoItem === "EQUIPAMENTO" ? categoryId : undefined,
-          stockTypeId: tipoItem === "EQUIPAMENTO" ? stockTypeId : undefined,
-          modelId,
-          consumableId,
-        };
-
-        startTransition(async () => {
-          const r = await processarEntradaCompra(payload);
-          if ("error" in r) {
-            toast.error(r.error);
-            return;
-          }
-          toast.success(r.message);
-          router.push(r.redirectTo);
-          router.refresh();
-        });
-      }}
-    >
-      <section className="space-y-4 rounded-xl border border-border bg-card p-6">
-        <h2 className="font-semibold text-foreground">Dados da nota fiscal</h2>
-        {fornecedores.length === 0 ? (
-          <p className="text-amber-800 text-sm dark:text-amber-200">
-            Não há fornecedores cadastrados.{" "}
-            <Link href="/fornecedores" className="font-medium underline underline-offset-2">
-              Cadastrar fornecedores
-            </Link>
-          </p>
-        ) : null}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2 sm:col-span-2">
-            <Label htmlFor="numeroNF">Número da NF *</Label>
-            <Input
-              id="numeroNF"
-              value={numeroNF}
-              onChange={(e) => setNumeroNF(e.target.value)}
-              placeholder="Ex.: 12345"
-              required
-            />
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label>Fornecedor *</Label>
-            <Select
-              value={supplierId || undefined}
-              onValueChange={(v) => setSupplierId(v ?? "")}
-              disabled={fornecedores.length === 0}
-            >
-              <SelectTrigger className="w-full min-w-0">
-                <SelectValue placeholder="Selecione o fornecedor" />
-              </SelectTrigger>
-              <SelectContent>
-                {fornecedores.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name} · {formatCnpjDigits(f.cnpj)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="dataCompra">Data da compra *</Label>
-            <Input
-              id="dataCompra"
-              type="date"
-              value={dataCompra}
-              onChange={(e) => setDataCompra(e.target.value)}
-              required
-            />
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label htmlFor="obs">Observações</Label>
-            <Textarea
-              id="obs"
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              rows={2}
-              placeholder="Opcional"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4 rounded-xl border border-border bg-card p-6">
-        <h2 className="font-semibold text-foreground">Produto</h2>
-        {missingCatalog && (
-          <p className="text-amber-800 text-sm dark:text-amber-200">{missingCatalog}</p>
-        )}
-        <div className="grid gap-2">
-          <Label>Item *</Label>
-          <Select value={produtoKey || undefined} onValueChange={(v) => setProdutoKey(v ?? "")}>
-            <SelectTrigger className="w-full min-w-0">
-              <SelectValue placeholder="Selecione modelo ou insumo" />
-            </SelectTrigger>
-            <SelectContent>
-              {modelos.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Equipamentos (modelos)</SelectLabel>
-                  {modelos.map((m) => (
-                    <SelectItem key={m.id} value={`e:${m.id}`}>
-                      {m.brandNome} — {m.nome}
-                      {m.isSerialized ? " (serializado)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              control={looseControl(form.control)}
+              name="numero"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Número da NF *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex.: 12345" autoComplete="off" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              {insumos.length > 0 && (
-                <SelectGroup>
-                  <SelectLabel>Insumos</SelectLabel>
-                  {insumos.map((c) => (
-                    <SelectItem key={c.id} value={`c:${c.id}`}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
+            />
+            <FormField
+              control={looseControl(form.control)}
+              name="supplierId"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Fornecedor *</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange} disabled={fornecedores.length === 0}>
+                    <FormControl>
+                      <SelectTrigger className="w-full min-w-0">
+                        <SelectValue placeholder="Selecione o fornecedor" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {fornecedores.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name} · {formatCnpjDigits(f.cnpj)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
               )}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {tipoItem === "EQUIPAMENTO" && selectedModelo && (
-          <p className="text-muted-foreground text-sm">
-            {selectedModelo.isSerialized
-              ? "Este modelo exige um número de série por unidade (cada unidade vira um patrimônio com série)."
-              : "Este modelo não exige série: serão criados vários patrimônios (tags distintas), sem número de série."}
-          </p>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="qtd">Quantidade *</Label>
-            <Input
-              id="qtd"
-              type="number"
-              min={1}
-              step={1}
-              value={quantidade}
-              onChange={(e) => setQuantidade(Number(e.target.value))}
             />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="vu">Valor unitário (R$) *</Label>
-            <Input
-              id="vu"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={valorUnitarioStr}
-              onChange={(e) => setValorUnitarioStr(e.target.value)}
+            <FormField
+              control={looseControl(form.control)}
+              name="dataEmissao"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data da compra *</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm">
-          <span className="text-muted-foreground">Valor total da linha: </span>
-          <span className="font-semibold tabular-nums text-foreground">{valorTotalFmt}</span>
-        </div>
-
-        {tipoItem === "EQUIPAMENTO" && (
-          <div className="space-y-4 border-border border-t pt-4">
-            <h3 className="font-medium text-foreground text-sm">Dados do patrimônio</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2 sm:col-span-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="grid flex-1 gap-2">
-                    <Label htmlFor="prefixo">Prefixo das tags de patrimônio *</Label>
+            <FormField
+              control={looseControl(form.control)}
+              name="valorTotal"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Valor total da NF (R$) *</FormLabel>
+                  <FormControl>
                     <Input
-                      id="prefixo"
-                      value={prefixoTag}
-                      onChange={(e) => setPrefixoTag(e.target.value)}
-                      placeholder="Ex.: NF12345-NOTEBOOK"
+                      className="tabular-nums"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={field.value === undefined ? "" : field.value}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        field.onChange(v === "" ? undefined : Number(v));
+                      }}
                     />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="shrink-0"
-                    onClick={() => {
-                      setPrefixoTag(gerarPrefixoTagAutomatico(numeroNF));
-                      toast.message("Prefixo gerado. As tags serão únicas (001, 002…).");
-                    }}
-                  >
-                    Gerar tags automáticas
-                  </Button>
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Será gerado automaticamente: {prefixoTag.trim() || "PREFIXO"}-001, 002… (único por item). Use o
-                  botão se não quiser amarrar o prefixo à série do fabricante.
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label>Empresa *</Label>
-                <Select value={companyId || undefined} onValueChange={(v) => setCompanyId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {empresas.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Categoria (patrimônio) *</Label>
-                <Select value={categoryId || undefined} onValueChange={(v) => setCategoryId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categorias.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2 sm:col-span-2">
-                <Label>Tipo de estoque *</Label>
-                <Select value={stockTypeId || undefined} onValueChange={(v) => setStockTypeId(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tiposEstoque.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {requiresSerial && (
-              <div className="space-y-2">
-                <Label>Números de série * ({qtd} campo(s))</Label>
-                <div className="max-h-72 overflow-y-auto rounded-md border border-border p-3">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {numerosSerie.map((s, i) => (
-                      <div key={i} className="grid gap-1">
-                        <span className="text-muted-foreground text-xs">Unidade {i + 1}</span>
-                        <Input
-                          value={s}
-                          onChange={(e) => setSerieAt(i, e.target.value)}
-                          placeholder={`Série ${i + 1}`}
-                          className="font-mono text-sm"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={looseControl(form.control)}
+              name="companyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Empresa (lote) *</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Empresa" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {empresas.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={looseControl(form.control)}
+              name="stockTypeId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de estoque (lote) *</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Tipo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {tiposEstoque.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
-        )}
-      </section>
+        </section>
 
-      <div className="flex flex-wrap gap-3">
-        <Button type="submit" disabled={pending || !canSubmit || Boolean(missingCatalog)}>
-          {pending ? "Processando…" : "Finalizar entrada"}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()} disabled={pending}>
-          Cancelar
-        </Button>
-      </div>
-    </form>
+        <section className="space-y-4 rounded-xl border border-border bg-card p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-foreground">Produto</h2>
+              <p className="text-muted-foreground text-sm">
+                Equipamentos (patrimônio) e insumos na mesma nota — adicione quantas linhas precisar.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-base">Equipamentos</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => appendAtivo(emptyLinhaAtivo(catPadrao))}
+                disabled={Boolean(missingCatalog)}
+              >
+                <Plus className="size-4" />
+                Adicionar equipamento
+              </Button>
+            </div>
+            {ativoFields.map((f, index) => (
+              <LinhaEquipamento
+                key={f.id}
+                index={index}
+                categorias={categorias}
+                marcas={marcas}
+                modelos={modelos}
+                control={looseControl(form.control)}
+                setValue={form.setValue}
+                brandId={form.watch(`ativos.${index}.brandId`)}
+                canRemove={ativoFields.length > 1 || insumoFields.length > 0}
+                modelId={form.watch(`ativos.${index}.modelId`)}
+                onRemove={() => removeAtivo(index)}
+              />
+            ))}
+            {ativoFields.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Nenhuma linha de equipamento. Inclua insumos abaixo ou clique em &quot;Adicionar
+                equipamento&quot;.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="border-border border-t pt-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-base">Insumos</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => {
+                  if (!insumoPadrao) {
+                    toast.error("Cadastre insumos antes de adicionar linhas.");
+                    return;
+                  }
+                  appendInsumo(emptyLinhaInsumo(insumoPadrao));
+                }}
+                disabled={insumos.length === 0}
+              >
+                <Plus className="size-4" />
+                Adicionar insumo
+              </Button>
+            </div>
+            {insumos.length === 0 ? (
+              <p className="text-muted-foreground text-sm">Não há insumos cadastrados.</p>
+            ) : null}
+            {insumoFields.map((f, index) => (
+              <div
+                key={f.id}
+                className="flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/20 p-4 sm:flex-row sm:items-end"
+              >
+                <FormField
+                  control={looseControl(form.control)}
+                  name={`insumos.${index}.consumableId`}
+                  render={({ field }) => (
+                    <FormItem className="min-w-[200px] flex-1">
+                      <FormLabel className="text-xs">Insumo *</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {insumos.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={looseControl(form.control)}
+                  name={`insumos.${index}.quantidade`}
+                  render={({ field }) => (
+                    <FormItem className="w-full sm:w-28">
+                      <FormLabel className="text-xs">Qtd *</FormLabel>
+                      <FormControl>
+                        <Input
+                          className="h-9 tabular-nums"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={field.value}
+                          onChange={(e) => field.onChange(Number(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive shrink-0"
+                  disabled={insumoFields.length <= 1 && ativoFields.length === 0}
+                  onClick={() => removeInsumo(index)}
+                  aria-label="Remover insumo"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting || Boolean(missingCatalog) || fornecedores.length === 0}
+          >
+            {form.formState.isSubmitting ? "Processando…" : "Finalizar entrada"}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => router.back()} disabled={form.formState.isSubmitting}>
+            Cancelar
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

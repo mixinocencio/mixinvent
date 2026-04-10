@@ -1,61 +1,39 @@
 import { z } from "zod";
 
-export const entradaCompraSchema = z
+const uuidMsg = "Selecione uma opção válida.";
+
+export const linhaAtivoEntradaSchema = z.object({
+  tagPatrimonio: z.string().min(1, "Informe a tag de patrimônio."),
+  nome: z.string().optional(),
+  categoryId: z.string().uuid(uuidMsg),
+  brandId: z.string().uuid(uuidMsg),
+  modelId: z.string().uuid(uuidMsg),
+  numeroSerie: z.string().optional(),
+});
+
+export const linhaInsumoEntradaSchema = z.object({
+  consumableId: z.string().uuid(uuidMsg),
+  quantidade: z.coerce.number().int().positive("Quantidade deve ser um inteiro maior que zero."),
+});
+
+export const registrarEntradaComNFSchema = z
   .object({
-    numeroNF: z.string().trim().min(1, "Informe o número da NF."),
+    numero: z.string().min(1, "Informe o número da NF."),
     supplierId: z.string().uuid("Selecione um fornecedor."),
-    dataCompra: z.string().min(1, "Informe a data da compra."),
-    observacoes: z.string().optional(),
-    tipoItem: z.enum(["EQUIPAMENTO", "INSUMO"]),
-    modelId: z.string().uuid().optional(),
-    consumableId: z.string().uuid().optional(),
-    quantidade: z.coerce.number().int("Use um número inteiro.").positive("Quantidade deve ser maior que zero."),
-    valorUnitario: z.coerce.number().nonnegative("Valor unitário inválido."),
-    numerosSerie: z.array(z.string()),
-    prefixoTag: z.string().optional(),
-    companyId: z.string().uuid().optional(),
-    categoryId: z.string().uuid().optional(),
-    stockTypeId: z.string().uuid().optional(),
+    dataEmissao: z.string().min(1, "Informe a data."),
+    valorTotal: z.number().optional(),
+    companyId: z.string().uuid("Selecione a empresa."),
+    stockTypeId: z.string().uuid("Selecione o tipo de estoque."),
+    ativos: z.array(linhaAtivoEntradaSchema).default([]),
+    insumos: z.array(linhaInsumoEntradaSchema).default([]),
   })
-  .superRefine((data, ctx) => {
-    if (data.tipoItem === "EQUIPAMENTO") {
-      if (!data.modelId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selecione o modelo.", path: ["modelId"] });
-      }
-      const p = data.prefixoTag?.trim();
-      if (!p) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Informe o prefixo das tags de patrimônio.",
-          path: ["prefixoTag"],
-        });
-      }
-      if (!data.companyId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selecione a empresa.", path: ["companyId"] });
-      }
-      if (!data.categoryId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Selecione a categoria (patrimônio).",
-          path: ["categoryId"],
-        });
-      }
-      if (!data.stockTypeId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Selecione o tipo de estoque.",
-          path: ["stockTypeId"],
-        });
-      }
-    } else {
-      if (!data.consumableId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Selecione o insumo.",
-          path: ["consumableId"],
-        });
-      }
-    }
+  .refine(
+    (d) => d.valorTotal != null && Number.isFinite(d.valorTotal) && d.valorTotal > 0,
+    { path: ["valorTotal"], message: "Informe o valor total da nota (maior que zero)." },
+  )
+  .refine((d) => d.ativos.length > 0 || d.insumos.length > 0, {
+    path: ["ativos"],
+    message: "Inclua ao menos um equipamento ou uma linha de insumo na nota.",
   });
 
-export type EntradaCompraInput = z.infer<typeof entradaCompraSchema>;
+export type RegistrarEntradaComNFInput = z.infer<typeof registrarEntradaComNFSchema>;
