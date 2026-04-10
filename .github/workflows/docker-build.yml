@@ -32,3 +32,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: mixinocencio/mixinvent:latest
+
+# Trigger: Primeira compilação oficial multiplataforma para o namespace mixinocencio.
