@@ -1,19 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { withDb } from "@/lib/with-db";
 import { DbOfflineNotice } from "@/components/layout/db-offline";
-import { ExportButton } from "@/components/relatorios/export-button";
+import { AuditoriaResumoView } from "@/components/relatorios/auditoria-resumo-view";
 import {
   type AuditoriaGeralRow,
   emptyAuditoriaRow,
 } from "@/lib/relatorios/auditoria-geral";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import type { AssetStatus, UserStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -46,10 +38,6 @@ function baseUserRow(u: {
     Departamento: u.departamento?.nome ?? "",
     "Licenças O365": u.licencasO365 ?? "",
   };
-}
-
-function displayCell(v: string) {
-  return v === "" ? "—" : v;
 }
 
 export default async function AuditoriaGeralPage() {
@@ -126,75 +114,27 @@ export default async function AuditoriaGeralPage() {
     dadosMapeados.push(row);
   }
 
+  const tableData = dadosMapeados.map((row) => ({
+    SamAccountName: row.SamAccountName,
+    Nome: row["Nome (User)"],
+    Cargo: row.Cargo,
+    Empresa: row.Empresa,
+    Departamento: row.Departamento,
+  }));
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            Auditoria Geral (Sumário Executivo)
-          </h1>
-          <p className="text-muted-foreground">
-            Cruzamento de colaboradores, licenças O365, contas AD e equipamentos alocados ou em
-            estoque.
-          </p>
-        </div>
-        <ExportButton data={dadosMapeados} />
+      <div>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">
+          Auditoria Geral (Sumário Executivo)
+        </h1>
+        <p className="text-muted-foreground">
+          Cruzamento de colaboradores, licenças O365, contas AD e equipamentos alocados ou em
+          estoque. Use Exportar CSV para o relatório completo (inclui equipamentos e status).
+        </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SamAccountName</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Cargo</TableHead>
-              <TableHead>Empresa</TableHead>
-              <TableHead>Departamento</TableHead>
-              <TableHead>Hostname</TableHead>
-              <TableHead>Service Tag</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Marca</TableHead>
-              <TableHead>Modelo</TableHead>
-              <TableHead>Antivírus</TableHead>
-              <TableHead>Licenças O365</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {dadosMapeados.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={13} className="text-center text-muted-foreground">
-                  Nenhum registro para exibir.
-                </TableCell>
-              </TableRow>
-            ) : (
-              dadosMapeados.map((row, i) => (
-                <TableRow key={i}>
-                  <TableCell className="whitespace-nowrap">{displayCell(row.SamAccountName)}</TableCell>
-                  <TableCell className="font-medium">{displayCell(row["Nome (User)"])}</TableCell>
-                  <TableCell>{displayCell(row.Cargo)}</TableCell>
-                  <TableCell>{displayCell(row.Empresa)}</TableCell>
-                  <TableCell>{displayCell(row.Departamento)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {displayCell(row["Equipamento (Hostname)"])}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap font-mono text-xs">
-                    {displayCell(row["Service Tag"])}
-                  </TableCell>
-                  <TableCell>{displayCell(row["Tipo (Categoria)"])}</TableCell>
-                  <TableCell>{displayCell(row.Marca)}</TableCell>
-                  <TableCell>{displayCell(row.Modelo)}</TableCell>
-                  <TableCell>{displayCell(row.Antivirus)}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={row["Licenças O365"]}>
-                    {displayCell(row["Licenças O365"])}
-                  </TableCell>
-                  <TableCell className="max-w-[220px] text-sm">{displayCell(row.Status)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <AuditoriaResumoView tableData={tableData} exportData={dadosMapeados} />
     </div>
   );
 }

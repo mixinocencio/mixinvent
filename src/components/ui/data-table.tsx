@@ -111,6 +111,8 @@ export type DataTableProps<TData, TValue> = {
   /** Texto quando `data` está vazio */
   emptyDataMessage?: string;
   className?: string;
+  /** Conteúdo extra à direita da busca (ex.: exportar CSV), antes do menu Colunas. */
+  toolbarEnd?: React.ReactNode;
 };
 
 export function DataTable<TData, TValue>({
@@ -121,6 +123,7 @@ export function DataTable<TData, TValue>({
   emptyMessage = "Nenhum resultado encontrado.",
   emptyDataMessage = "Nenhum registro cadastrado.",
   className,
+  toolbarEnd,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -189,7 +192,9 @@ export function DataTable<TData, TValue>({
             autoComplete="off"
           />
         </div>
-        <DropdownMenu>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {toolbarEnd}
+          <DropdownMenu>
           <DropdownMenuTrigger
             type="button"
             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2 shrink-0")}
@@ -216,6 +221,7 @@ export function DataTable<TData, TValue>({
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card">
