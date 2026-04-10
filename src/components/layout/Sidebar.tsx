@@ -33,8 +33,8 @@ const navLinkClass = (active: boolean) =>
   cn(
     "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
     active
-      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
+      ? "bg-primary-foreground/15 text-primary-foreground"
+      : "text-primary-foreground/85 hover:bg-primary-foreground/10 hover:text-primary-foreground",
   );
 
 const CADASTROS_PREFIXES = [
@@ -60,12 +60,12 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="border-b border-sidebar-border px-4 py-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-primary-foreground/15 bg-primary text-primary-foreground">
+      <div className="border-b border-primary-foreground/15 px-4 py-4">
+        <Link href="/" className="text-lg font-semibold tracking-tight text-primary-foreground">
           MixInvent
         </Link>
-        <p className="text-xs text-muted-foreground">Gestão de ativos de TI</p>
+        <p className="text-xs text-primary-foreground/70">Gestão de ativos de TI</p>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
         <Link href="/" className={navLinkClass(pathname === "/")}>
@@ -103,8 +103,8 @@ export function Sidebar() {
             className={cn(
               "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               cadastrosOpen
-                ? "bg-sidebar-accent/60 text-sidebar-accent-foreground"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80",
+                ? "bg-primary-foreground/15 text-primary-foreground"
+                : "text-primary-foreground/85 hover:bg-primary-foreground/10",
             )}
           >
             <Settings className="size-4 shrink-0" />
@@ -116,7 +116,7 @@ export function Sidebar() {
             )}
           </button>
           {cadastrosOpen && (
-            <div className="mt-1 flex flex-col gap-0.5 border-l border-sidebar-border pl-3 ml-3">
+            <div className="mt-1 ml-3 flex flex-col gap-0.5 border-l border-primary-foreground/20 pl-3">
               <Link
                 href="/colaboradores"
                 className={cn(navLinkClass(pathname.startsWith("/colaboradores")), "py-1.5")}
@@ -184,8 +184,8 @@ export function Sidebar() {
             className={cn(
               "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               adminOpen
-                ? "bg-sidebar-accent/60 text-sidebar-accent-foreground"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80",
+                ? "bg-primary-foreground/15 text-primary-foreground"
+                : "text-primary-foreground/85 hover:bg-primary-foreground/10",
             )}
           >
             <Settings2 className="size-4 shrink-0" />
@@ -197,7 +197,7 @@ export function Sidebar() {
             )}
           </button>
           {adminOpen && (
-            <div className="mt-1 flex flex-col gap-0.5 border-l border-sidebar-border pl-3 ml-3">
+            <div className="mt-1 ml-3 flex flex-col gap-0.5 border-l border-primary-foreground/20 pl-3">
               <Link
                 href="/admin/dashboard"
                 className={cn(navLinkClass(pathname.startsWith("/admin/dashboard")), "py-1.5")}
