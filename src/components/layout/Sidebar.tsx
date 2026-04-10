@@ -26,7 +26,10 @@ import {
   RefreshCw,
   BarChart3,
   UserX,
+  UserCog,
+  LogOut,
 } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 const navLinkClass = (active: boolean) =>
@@ -52,6 +55,8 @@ const ADMIN_PREFIXES = ["/admin"] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [cadastrosOpen, setCadastrosOpen] = useState(() =>
     CADASTROS_PREFIXES.some((p) => pathname.startsWith(p)),
   );
@@ -60,7 +65,7 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-primary-foreground/15 bg-primary text-primary-foreground">
+    <aside className="fixed inset-y-0 left-0 z-40 flex min-h-screen w-56 flex-col border-r border-primary-foreground/15 bg-primary text-primary-foreground">
       <div className="border-b border-primary-foreground/15 px-4 py-4">
         <Link href="/" className="text-lg font-semibold tracking-tight text-primary-foreground">
           MixInvent
@@ -212,6 +217,15 @@ export function Sidebar() {
                 <Users className="size-4 shrink-0" />
                 Colaboradores
               </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin/usuarios"
+                  className={cn(navLinkClass(pathname.startsWith("/admin/usuarios")), "py-1.5")}
+                >
+                  <UserCog className="size-4 shrink-0" />
+                  Operadores
+                </Link>
+              )}
               <Link
                 href="/admin/auditoria"
                 className={cn(navLinkClass(pathname.startsWith("/admin/auditoria")), "py-1.5")}
@@ -244,6 +258,19 @@ export function Sidebar() {
           )}
         </div>
       </nav>
+      <div className="mt-auto border-t border-primary-foreground/15 p-3">
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            "text-primary-foreground/85 hover:bg-primary-foreground/10 hover:text-primary-foreground",
+          )}
+        >
+          <LogOut className="size-4 shrink-0" />
+          Sair
+        </button>
+      </div>
     </aside>
   );
 }

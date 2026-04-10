@@ -112,6 +112,9 @@ async function main() {
   });
 
   console.log("Seed executado: Banco alimentado com dados de Infraestrutura!");
+  console.log(
+    "Dica EBEG: crie o administrador mestre com Argon2 via `npm run db:seed-admin` (veja .env.example).",
+  );
 }
 
 main()

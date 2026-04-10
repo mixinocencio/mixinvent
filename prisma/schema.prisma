@@ -41,6 +41,11 @@ enum TipoMovimentacaoInsumo {
   SAIDA
 }
 
+enum Role {
+  ADMIN
+  OPERATOR
+}
+
 model NotaFiscal {
   id           String   @id @default(uuid())
   numero       String
@@ -99,6 +104,19 @@ model Company {
   assets       Asset[]
 
   @@map("companies")
+}
+
+/// Conta de acesso ao painel MixInvent (login/senha). Distinto de `User`, que representa colaborador/Entra.
+model AuthUser {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(OPERATOR)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("auth_users")
 }
 
 model Brand {

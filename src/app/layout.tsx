@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { AppShell } from "@/components/layout/app-shell";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -31,12 +31,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}>
         <Providers>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="min-h-screen flex-1 overflow-x-auto pl-56">
-              <div className="mx-auto max-w-6xl p-6 md:p-8">{children}</div>
-            </main>
-          </div>
+          <AppShell>{children}</AppShell>
           <Toaster richColors position="top-right" />
         </Providers>
       </body>
