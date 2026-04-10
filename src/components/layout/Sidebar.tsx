@@ -240,6 +240,13 @@ export function Sidebar() {
                 <FileSpreadsheet className="size-4 shrink-0" />
                 Importação CSV
               </Link>
+              <Link
+                href="/admin/entradas"
+                className={cn(navLinkClass(pathname.startsWith("/admin/entradas")), "py-1.5")}
+              >
+                <Receipt className="size-4 shrink-0" />
+                Nova entrada (NF)
+              </Link>
             </div>
           )}
         </div>

@@ -9,6 +9,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:seed": "prisma db seed",
+    "db:reset-data": "ts-node --project tsconfig.scripts.json src/lib/scripts/reset-db.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },
@@ -48,6 +49,7 @@
     "eslint-config-next": "15.5.14",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "tsx": "^4.19.4",
     "typescript": "^5"
   }

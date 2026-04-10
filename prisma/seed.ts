@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { OrigemEntrada, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -98,6 +98,7 @@ async function main() {
   await prisma.asset.create({
     data: {
       tagPatrimonio: "10026200",
+      origem: OrigemEntrada.IMPORTACAO_INICIAL,
       hostname: "RPO-EBSDNBTI001",
       sistemaOperacional: "Windows 11 Pro",
       statusAntivirus: "Protected",

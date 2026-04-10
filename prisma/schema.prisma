@@ -30,6 +30,32 @@ enum AssetLogAcao {
   MANUTENCAO
 }
 
+enum OrigemEntrada {
+  NOTA_FISCAL
+  AUDITORIA
+  IMPORTACAO_INICIAL
+}
+
+enum TipoMovimentacaoInsumo {
+  ENTRADA
+  SAIDA
+}
+
+model NotaFiscal {
+  id           String   @id @default(uuid())
+  numero       String
+  fornecedor   String
+  dataEmissao  DateTime @map("data_emissao")
+  valorTotal   Float    @map("valor_total")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  patrimonios          Asset[]              @relation("PatrimonioNotaFiscal")
+  movimentacoesInsumo  MovimentacaoInsumo[]
+
+  @@map("notas_fiscais")
+}
+
 model Supplier {
   id            String          @id @default(uuid())
   name          String
@@ -173,6 +199,8 @@ model Asset {
   modelId            String       @map("model_id")
   stockTypeId        String         @map("stock_type_id")
   purchaseOrderId  String?        @map("purchase_order_id")
+  notaFiscalId     String?        @map("nota_fiscal_id")
+  origem           OrigemEntrada  @default(NOTA_FISCAL)
   usuarioAtual       User?          @relation("AssetUsuarioAtual", fields: [userId], references: [id])
   category           Category       @relation(fields: [categoryId], references: [id])
   company            Company        @relation(fields: [companyId], references: [id])
@@ -180,6 +208,7 @@ model Asset {
   model              DeviceModel    @relation(fields: [modelId], references: [id])
   stockType          StockType      @relation(fields: [stockTypeId], references: [id])
   purchaseOrder      PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  notaFiscal         NotaFiscal?    @relation("PatrimonioNotaFiscal", fields: [notaFiscalId], references: [id])
   logs               AssetLog[]
 
   @@map("assets")
@@ -194,8 +223,24 @@ model Consumable {
   purchaseOrderId   String?        @map("purchase_order_id")
   category          Category       @relation(fields: [categoryId], references: [id])
   purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  movimentacoes     MovimentacaoInsumo[]
 
   @@map("consumables")
+}
+
+model MovimentacaoInsumo {
+  id             String                   @id @default(uuid())
+  consumableId   String                   @map("consumable_id")
+  quantidade     Int
+  tipo           TipoMovimentacaoInsumo
+  notaFiscalId   String?                  @map("nota_fiscal_id")
+  origem         OrigemEntrada            @default(NOTA_FISCAL)
+  createdAt      DateTime                 @default(now()) @map("created_at")
+
+  consumable  Consumable  @relation(fields: [consumableId], references: [id], onDelete: Cascade)
+  notaFiscal  NotaFiscal? @relation(fields: [notaFiscalId], references: [id], onDelete: SetNull)
+
+  @@map("movimentacoes_insumo")
 }
 
 model SystemSetting {
